@@ -41,13 +41,13 @@ if [ -d morphe-magisk-module ] || [ -f config.toml ]; then
 		cd ..
 		cp -f morphe-magisk-module/config.toml .
 		rm -rf morphe-magisk-module
-		git clone https://github.com/j-hc/morphe-magisk-module --recurse --depth 1
+		git clone https://github.com/AzyrRuthless/morphe-magisk-module --recurse --depth 1
 		mv -f config.toml morphe-magisk-module/config.toml
 		cd morphe-magisk-module
 	fi
 else
 	pr "Cloning morphe-magisk-module."
-	git clone https://github.com/j-hc/morphe-magisk-module --depth 1
+	git clone https://github.com/AzyrRuthless/morphe-magisk-module --depth 1
 	cd morphe-magisk-module
 	sed -i '/^enabled.*/d; /^\[.*\]/a enabled = false' config.toml
 	grep -q 'morphe-magisk-module' ~/.gitconfig 2>/dev/null ||
