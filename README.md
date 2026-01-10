@@ -47,3 +47,7 @@ $ git clone https://github.com/AzyrRuthless/morphe-magisk-module
 $ cd morphe-magisk-module
 $ ./build.sh
 ```
+## Credits
+
+* [Morphe](https://github.com/MorpheApp)
+* Based on/fork of: [revanced-magisk-module](https://github.com/j-hc/revanced-magisk-module)
