@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-MODULE_TEMPLATE_DIR="revanced-magisk"
+MODULE_TEMPLATE_DIR="morphe-magisk"
 CWD=$(pwd)
 TEMP_DIR="temp"
 BIN_DIR="bin"
@@ -53,7 +53,7 @@ get_prebuilts() {
 	cl_dir=${TEMP_DIR}/${cl_dir,,}-rv
 	[ -d "$cl_dir" ] || mkdir "$cl_dir"
 
-	for src_ver in "$cli_src CLI $cli_ver revanced-cli" "$patches_src Patches $patches_ver patches"; do
+	for src_ver in "$cli_src CLI $cli_ver morphe-cli" "$patches_src Patches $patches_ver patches"; do
 		set -- $src_ver
 		local src=$1 tag=$2 ver=${3-} fprefix=$4
 		local ext
@@ -129,7 +129,7 @@ get_prebuilts() {
 					cd "${file}-zip" || abort
 					zip -0rq "${CWD}/${file}" . || return 1
 				) >&2; then
-					echo >&2 "Patching revanced-integrations failed"
+					echo >&2 "Patching morphe-integrations failed"
 				fi
 				rm -r "${file}-zip" || :
 			fi
