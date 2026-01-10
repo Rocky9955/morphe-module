@@ -1,8 +1,9 @@
 enable-magisk-update = true # set this to false if you do not want to receive updates for the module in magisk app
 parallel-jobs = 1
+riplib = true
 
 patches-source = "morpheapp/morphe-patches"
-cli-source = "morpheapp/morphe-cli"
+cli-source = "AzyrRuthless/morphe-cli"
 rv-brand = "Morphe"
 patches-version = "latest"
 cli-version = "latest"
