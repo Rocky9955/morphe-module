@@ -481,6 +481,33 @@ check_sig() {
 
 build_rv() {
 	eval "declare -A args=${1#*=}"
+	
+	local ks_file="ks.keystore"
+	local ks_alias="jhc"
+	local ks_pass="123456789"
+	local needs_gen=false
+
+	if [ ! -f "$ks_file" ]; then
+		needs_gen=true
+	elif ! keytool -list -v -keystore "$ks_file" -storepass "$ks_pass" 2>&1 | grep -q "Keystore type: PKCS12"; then
+		pr "Existing keystore is invalid or not PKCS12. Regenerating..."
+		needs_gen=true
+	fi
+
+	if [ "$needs_gen" = true ]; then
+		rm -f "$ks_file"
+		pr "Generating fallback keystore (PKCS12)..."
+		
+		keytool -genkeypair -v -keystore "$ks_file" -alias "$ks_alias" \
+			-storetype PKCS12 \
+			-keyalg RSA -keysize 2048 -validity 10000 \
+			-storepass "$ks_pass" -keypass "$ks_pass" \
+			-dname "CN=Morphe User, OU=Morphe Project, O=OpenSource, L=Jakarta, C=ID" \
+			>/dev/null 2>&1
+			
+		if [ $? -ne 0 ]; then abort "Failed to generate fallback keystore!"; fi
+	fi
+
 	local version="" pkg_name=""
 	local mode_arg=${args[build_mode]} version_mode=${args[version]}
 	local app_name=${args[app_name]}
@@ -587,6 +614,7 @@ build_rv() {
 	if [ "${args[patcher_args]}" ]; then p_patcher_args+=("${args[patcher_args]}"); fi
 	for build_mode in "${build_mode_arr[@]}"; do
 		patcher_args=("${p_patcher_args[@]}")
+		patcher_args+=("--unsigned")
 		pr "Building '${table}' in '$build_mode' mode"
 		if [ -n "$microg_patch" ]; then
 			patched_apk="${TEMP_DIR}/${app_name_l}-${rv_brand_f}-${version_f}-${arch_f}-${build_mode}.apk"
@@ -609,7 +637,7 @@ build_rv() {
 		if [ "${args[riplib]}" = true ]; then
 			patcher_args+=("--rip-lib x86_64 --rip-lib x86")
 			if [ "$build_mode" = module ]; then
-				patcher_args+=("--rip-lib arm64-v8a --rip-lib armeabi-v7a --unsigned")
+				patcher_args+=("--rip-lib arm64-v8a --rip-lib armeabi-v7a")
 			else
 				if [ "$arch" = "arm64-v8a" ]; then
 					patcher_args+=("--rip-lib armeabi-v7a")
@@ -637,28 +665,14 @@ build_rv() {
 			zipalign -p -f 4 "$patched_apk" "$patched_apk.aligned"
 			mv -f "$patched_apk.aligned" "$patched_apk"
 
-			local ks_file="ks.keystore"
-			local ks_alias="jhc"
-			local ks_pass="123456789"
-
-			if ! keytool -list -keystore "$ks_file" -storepass "$ks_pass" >/dev/null 2>&1; then
-				pr "Keystore missing/empty. Generating temp debug keystore..."
-				ks_file="debug.keystore"
-				ks_alias="androiddebugkey"
-				ks_pass="android"
-				rm -f "$ks_file"
-				keytool -genkey -v -keystore "$ks_file" -alias "$ks_alias" \
-					-keyalg RSA -keysize 2048 -validity 10000 \
-					-storepass "$ks_pass" -keypass "$ks_pass" \
-					-dname "CN=Android Debug,O=Android,C=US" >/dev/null 2>&1
+			if [ "$build_mode" = "apk" ]; then
+				java -jar "$APKSIGNER" sign \
+					--ks "$ks_file" \
+					--ks-pass "pass:$ks_pass" \
+					--ks-key-alias "$ks_alias" \
+					--key-pass "pass:$ks_pass" \
+					"$patched_apk"
 			fi
-
-			java -jar "$APKSIGNER" sign \
-				--ks "$ks_file" \
-				--ks-pass "pass:$ks_pass" \
-				--ks-key-alias "$ks_alias" \
-				--key-pass "pass:$ks_pass" \
-				"$patched_apk"
 		else
 			epr "WARNING: zipalign not found! APK install will likely fail."
 		fi
