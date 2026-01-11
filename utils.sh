@@ -637,11 +637,27 @@ build_rv() {
 			zipalign -p -f 4 "$patched_apk" "$patched_apk.aligned"
 			mv -f "$patched_apk.aligned" "$patched_apk"
 
+			local ks_file="ks.keystore"
+			local ks_alias="jhc"
+			local ks_pass="123456789"
+
+			if ! keytool -list -keystore "$ks_file" -storepass "$ks_pass" >/dev/null 2>&1; then
+				pr "Keystore missing/empty. Generating temp debug keystore..."
+				ks_file="debug.keystore"
+				ks_alias="androiddebugkey"
+				ks_pass="android"
+				rm -f "$ks_file"
+				keytool -genkey -v -keystore "$ks_file" -alias "$ks_alias" \
+					-keyalg RSA -keysize 2048 -validity 10000 \
+					-storepass "$ks_pass" -keypass "$ks_pass" \
+					-dname "CN=Android Debug,O=Android,C=US" >/dev/null 2>&1
+			fi
+
 			java -jar "$APKSIGNER" sign \
-				--ks ks.keystore \
-				--ks-pass pass:123456789 \
-				--ks-key-alias jhc \
-				--key-pass pass:123456789 \
+				--ks "$ks_file" \
+				--ks-pass "pass:$ks_pass" \
+				--ks-key-alias "$ks_alias" \
+				--key-pass "pass:$ks_pass" \
 				"$patched_apk"
 		else
 			epr "WARNING: zipalign not found! APK install will likely fail."
