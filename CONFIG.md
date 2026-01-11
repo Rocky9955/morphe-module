@@ -22,7 +22,7 @@ remove-rv-integrations-checks = true # remove checks from the morphe integration
 dpi = "nodpi anydpi 120-640dpi"      # dpi packages to be searched in order. default: "nodpi anydpi"
 
 patches-source = "morpheapp/morphe-patches" # where to fetch patches bundle from. default: "morpheapp/morphe-patches"
-cli-source = "morpheapp/morphe-cli"             # where to fetch cli from. default: "morpheapp/morphe-cli"
+cli-source = "AzyrRuthless/morphe-cli"             # where to fetch cli from. default: "AzyrRuthless/morphe-cli"
 # options like cli-source can also set per app
 rv-brand = "ReVanced Extended" # rebrand from 'Morphe' to something different. default: "Morphe"
 
