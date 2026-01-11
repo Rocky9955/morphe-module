@@ -25,6 +25,9 @@ jobs:
           fetch-depth: 0
           submodules: true
 
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y zipalign
+
       - name: Update config
         if: ${{ inputs.from_ci }}
         run: |
