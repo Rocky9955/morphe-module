@@ -5,7 +5,7 @@ riplib = true
 patches-source = "morpheapp/morphe-patches"
 cli-source = "AzyrRuthless/morphe-cli"
 rv-brand = "Morphe"
-patches-version = "dev"
+patches-version = "latest"
 cli-version = "latest"
 
 #Morphe
