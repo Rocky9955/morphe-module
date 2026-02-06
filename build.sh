@@ -11,6 +11,17 @@ fi
 
 source utils.sh
 
+if [ -n "$ANDROID_SDK_ROOT" ] && [ -d "$ANDROID_SDK_ROOT/build-tools" ]; then
+    LATEST_BUILD_TOOLS=$(ls -1 "$ANDROID_SDK_ROOT/build-tools" | sort -V | tail -n 1)
+    ZIPALIGN_BIN="$ANDROID_SDK_ROOT/build-tools/$LATEST_BUILD_TOOLS/zipalign"
+elif [ -n "$ANDROID_HOME" ] && [ -d "$ANDROID_HOME/build-tools" ]; then
+    LATEST_BUILD_TOOLS=$(ls -1 "$ANDROID_HOME/build-tools" | sort -V | tail -n 1)
+    ZIPALIGN_BIN="$ANDROID_HOME/build-tools/$LATEST_BUILD_TOOLS/zipalign"
+else
+    ZIPALIGN_BIN="zipalign"
+fi
+echo "Using zipalign: $ZIPALIGN_BIN"
+
 jq --version >/dev/null || abort "\`jq\` is not installed. install it with 'apt install jq' or equivalent"
 java --version >/dev/null || abort "\`openjdk 17\` is not installed. install it with 'apt install openjdk-17-jre' or equivalent"
 zip --version >/dev/null || abort "\`zip\` is not installed. install it with 'apt install zip' or equivalent"
