@@ -20,7 +20,7 @@ elif [ -n "$ANDROID_HOME" ] && [ -d "$ANDROID_HOME/build-tools" ]; then
 else
     ZIPALIGN_BIN="zipalign"
 fi
-echo "Using zipalign: $ZIPALIGN_BIN"
+echo "Using zipalign: $ZIPALIGN_BIN" >&2
 
 jq --version >/dev/null || abort "\`jq\` is not installed. install it with 'apt install jq' or equivalent"
 java --version >/dev/null || abort "\`openjdk 17\` is not installed. install it with 'apt install openjdk-17-jre' or equivalent"
