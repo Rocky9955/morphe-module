@@ -705,7 +705,7 @@ build_rv() {
 		patcher_args=("${p_patcher_args[@]}")
 		patcher_args+=("--unsigned")
 		pr "Building '${table}' in '$build_mode' mode"
-		if [ -n "$microg_patch" ]; then
+		if [ -n "$microg_patch" ] || [ -f "${stock_apk}.apkm" ]; then
 			patched_apk="${TEMP_DIR}/${app_name_l}-${rv_brand_f}-${version_f}-${arch_f}-${build_mode}.apk"
 		else
 			patched_apk="${TEMP_DIR}/${app_name_l}-${rv_brand_f}-${version_f}-${arch_f}.apk"
