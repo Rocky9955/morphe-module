@@ -91,15 +91,21 @@ get_prebuilts() {
 			resp=$(gh_req "$rv_rel" -) || return 1
 			tag_name=$(jq -r '.tag_name' <<<"$resp")
 			matches=$(jq -e ".assets | map(select(.name | endswith(\"$ext\")))" <<<"$resp")
-			if [ "$(jq 'length' <<<"$matches")" -ne 1 ]; then
-				epr "More than 1 asset was found for this cli release. Fallbacking to the first one found..."
+			if [ "$(jq 'length' <<<"$matches")" -gt 1 ]; then
+				matches=$(jq -e -r 'map(select(.name | contains("-dev") | not))' <<<"$matches")
+			fi
+			if [ "$(jq 'length' <<<"$matches")" -eq 0 ]; then
+				epr "No asset was found"
+				return 1
+			elif [ "$(jq 'length' <<<"$matches")" -ne 1 ]; then
+				epr "More than 1 asset was found for this cli release. Falling back to the first one found..."
 			fi
 			asset=$(jq -r ".[0]" <<<"$matches")
 			url=$(jq -r .url <<<"$asset")
 			name=$(jq -r .name <<<"$asset")
 			file="${dir}/${name}"
 			gh_dl "$file" "$url" >&2 || return 1
-			echo "$tag: $(cut -d/ -f1 <<<"$src")/${name}  " >>"${cl_dir}/changelog.md"
+			echo "$tag: $(cut -d/ -f1 <<<"$src")/${name}  " >>"${cl_dir}/changelog.md"
 		else
 			grab_cl=false
 			local for_err=$file
