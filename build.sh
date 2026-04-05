@@ -23,7 +23,7 @@ fi
 echo "Using zipalign: $ZIPALIGN_BIN" >&2
 
 jq --version >/dev/null || abort "\`jq\` is not installed. install it with 'apt install jq' or equivalent"
-java --version >/dev/null || abort "\`openjdk 17\` is not installed. install it with 'apt install openjdk-17-jre' or equivalent"
+java --version >/dev/null || abort "\`openjdk 17+\` is not installed. install it with 'apt install openjdk-21-jre' or equivalent"
 zip --version >/dev/null || abort "\`zip\` is not installed. install it with 'apt install zip' or equivalent"
 command -v zipalign >/dev/null || abort "\`zipalign\` is not installed. install it with 'apt install zipalign' or equivalent"
 
@@ -80,7 +80,10 @@ for table_name in $(toml_get_table_names); do
 	vtf "$enabled" "enabled"
 	if [ "$enabled" = false ]; then continue; fi
 	if ((idx >= PARALLEL_JOBS)); then
-		wait -n
+		wait -n || {
+			epr "A background build job terminated with a non-zero exit code."
+			exit 1
+		}
 		idx=$((idx - 1))
 	fi
 
