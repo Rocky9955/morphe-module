@@ -2,7 +2,7 @@
 
 set -euo pipefail
 shopt -s nullglob
-trap "rm -rf temp/*tmp.* temp/*/*tmp.* temp/*-temporary-files; kill 0; exit 130" INT
+trap "abort" INT
 
 if [ "${1-}" = "clean" ]; then
 	rm -rf temp build logs build.md
@@ -12,18 +12,18 @@ fi
 source utils.sh
 
 if [ -n "$ANDROID_SDK_ROOT" ] && [ -d "$ANDROID_SDK_ROOT/build-tools" ]; then
-    LATEST_BUILD_TOOLS=$(ls -1 "$ANDROID_SDK_ROOT/build-tools" | sort -V | tail -n 1)
-    ZIPALIGN_BIN="$ANDROID_SDK_ROOT/build-tools/$LATEST_BUILD_TOOLS/zipalign"
+	LATEST_BUILD_TOOLS=$(ls -1 "$ANDROID_SDK_ROOT/build-tools" | sort -V | tail -n 1)
+	ZIPALIGN_BIN="$ANDROID_SDK_ROOT/build-tools/$LATEST_BUILD_TOOLS/zipalign"
 elif [ -n "$ANDROID_HOME" ] && [ -d "$ANDROID_HOME/build-tools" ]; then
-    LATEST_BUILD_TOOLS=$(ls -1 "$ANDROID_HOME/build-tools" | sort -V | tail -n 1)
-    ZIPALIGN_BIN="$ANDROID_HOME/build-tools/$LATEST_BUILD_TOOLS/zipalign"
+	LATEST_BUILD_TOOLS=$(ls -1 "$ANDROID_HOME/build-tools" | sort -V | tail -n 1)
+	ZIPALIGN_BIN="$ANDROID_HOME/build-tools/$LATEST_BUILD_TOOLS/zipalign"
 else
-    ZIPALIGN_BIN="zipalign"
+	ZIPALIGN_BIN="zipalign"
 fi
 echo "Using zipalign: $ZIPALIGN_BIN" >&2
 
 jq --version >/dev/null || abort "\`jq\` is not installed. install it with 'apt install jq' or equivalent"
-java --version >/dev/null || abort "\`openjdk 17\` is not installed. install it with 'apt install openjdk-17-jre' or equivalent"
+java --version >/dev/null || abort "\`openjdk 17+\` is not installed. install it with 'apt install openjdk-21-jre' or equivalent"
 zip --version >/dev/null || abort "\`zip\` is not installed. install it with 'apt install zip' or equivalent"
 command -v zipalign >/dev/null || abort "\`zipalign\` is not installed. install it with 'apt install zipalign' or equivalent"
 
@@ -62,7 +62,7 @@ if ((COMPRESSION_LEVEL > 9)) || ((COMPRESSION_LEVEL < 0)); then abort "compressi
 
 rm -rf morphe-magisk/bin/*/tmp.*
 for file in "$TEMP_DIR"/*/changelog.md; do
-    [ -f "$file" ] && : > "$file"
+	[ -f "$file" ] && : > "$file"
 done
 
 mkdir -p ${MODULE_TEMPLATE_DIR}/bin/arm64 ${MODULE_TEMPLATE_DIR}/bin/arm ${MODULE_TEMPLATE_DIR}/bin/x86 ${MODULE_TEMPLATE_DIR}/bin/x64
@@ -80,7 +80,10 @@ for table_name in $(toml_get_table_names); do
 	vtf "$enabled" "enabled"
 	if [ "$enabled" = false ]; then continue; fi
 	if ((idx >= PARALLEL_JOBS)); then
-		wait -n
+		wait -n || {
+			epr "A background build job terminated with a non-zero exit code."
+			exit 1
+		}
 		idx=$((idx - 1))
 	fi
 
@@ -137,7 +140,6 @@ for table_name in $(toml_get_table_names); do
 		app_args[dl_from]=archive
 	} || app_args[archive_dlurl]=""
 	
-	# Added GitHub Release parsing
 	app_args[github_release_dlurl]=$(toml_get "$t" github-release-dlurl) && {
 		app_args[dl_from]=github_release
 	} || app_args[github_release_dlurl]=""

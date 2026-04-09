@@ -24,7 +24,7 @@ toml_get_table_main() { jq -r -e 'to_entries | map(select(.value | type != "obje
 toml_get_table() { jq -r -e ".\"${1}\"" <<<"$__TOML__"; }
 toml_get() {
 	local op quote_placeholder=$'\001'
-	op=$(jq -r ".\"${2}\" | values" <<<"$1")
+	op=$(jq -r ".\"${2}\" | values" <<<"$1" 2>/dev/null || true)
 	if [ "$op" ]; then
 		op="${op#"${op%%[![:space:]]*}"}"
 		op="${op%"${op##*[![:space:]]}"}"
@@ -41,10 +41,17 @@ epr() {
 	echo >&2 -e "\033[0;31m[-] ${1}\033[0m"
 	if [ "${GITHUB_REPOSITORY-}" ]; then echo >&2 -e "::error::utils.sh [-] ${1}\n"; fi
 }
+wpr() {
+	echo >&2 -e "\033[0;33m[!] ${1}\033[0m"
+	if [ "${GITHUB_REPOSITORY-}" ]; then echo >&2 -e "::warning::utils.sh [!] ${1}\n"; fi
+}
 abort() {
 	epr "ABORT: ${1-}"
+	rm -rf ./${TEMP_DIR}/*tmp.* ./${TEMP_DIR}/*/*tmp.* ./${TEMP_DIR}/*-temporary-files
 	exit 1
 }
+
+java() { command java --enable-native-access=ALL-UNNAMED "$@"; }
 
 get_prebuilts() {
 	local cli_src=$1 cli_ver=$2 patches_src=$3 patches_ver=$4
@@ -84,24 +91,30 @@ get_prebuilts() {
 			name_ver="$ver"
 		fi
 
-		local url file tag_name name
+		local url file tag_name name matches
 		file=$(find "$dir" -name "${fprefix}-${name_ver#v}.${ext}" -type f 2>/dev/null)
 		if [ -z "$file" ]; then
 			local resp asset name
 			resp=$(gh_req "$rv_rel" -) || return 1
 			tag_name=$(jq -r '.tag_name' <<<"$resp")
-			matches=$(jq -e ".assets | map(select(.name | endswith(\"$ext\")))" <<<"$resp")
+			matches=$(jq -e ".assets | map(select(.name | endswith(\"$ext\") and (endswith(\"asc\") or endswith(\"json\") | not)))" <<<"$resp") || return 1
 			if [ "$(jq 'length' <<<"$matches")" -gt 1 ]; then
-				matches=$(jq -e -r 'map(select(.name | contains("-dev") | not))' <<<"$matches")
+				local matches_new
+				matches_new=$(jq -e -r 'map(select(.name | contains("-dev") | not))' <<<"$matches")
+				if [ "$(jq 'length' <<<"$matches_new")" -eq 1 ]; then
+					matches=$matches_new
+				fi
 			fi
 			if [ "$(jq 'length' <<<"$matches")" -eq 0 ]; then
 				epr "No asset was found"
 				return 1
 			elif [ "$(jq 'length' <<<"$matches")" -ne 1 ]; then
-				epr "More than 1 asset was found for this cli release. Falling back to the first one found..."
+				epr "More than 1 asset was found for this release. Falling back to the first one found..."
 			fi
 			asset=$(jq -r ".[0]" <<<"$matches")
+			
 			url=$(jq -r .url <<<"$asset")
+			
 			name=$(jq -r .name <<<"$asset")
 			file="${dir}/${name}"
 			gh_dl "$file" "$url" >&2 || return 1
@@ -124,13 +137,18 @@ get_prebuilts() {
 		elif [ "$tag" = "Patches" ]; then
 			if [ $grab_cl = true ]; then echo -e "[Changelog](https://github.com/${src}/releases/tag/${tag_name})\n" >>"${cl_dir}/changelog.md"; fi
 			if [ "$REMOVE_RV_INTEGRATIONS_CHECKS" = true ]; then
-				# Dynamically calculate inner extension (rvp->rve, mpp->mpe)
-				local inner_ext="${ext%p}e"
+				local extensions_ext
+				extensions_ext=$(unzip -l "${file}" "extensions/shared.*" 2>/dev/null | grep -o "shared\..*" || true)
+				extensions_ext="${extensions_ext#*.}"
+				if [ -z "$extensions_ext" ]; then extensions_ext="${ext%p}e"; fi
+				
 				if ! (
 					mkdir -p "${file}-zip" || return 1
 					unzip -qo "${file}" -d "${file}-zip" || return 1
-					java -cp "${BIN_DIR}/paccer.jar:${BIN_DIR}/dexlib2.jar" com.jhc.Main "${file}-zip/extensions/shared.${inner_ext}" "${file}-zip/extensions/shared-patched.${inner_ext}" || return 1
-					mv -f "${file}-zip/extensions/shared-patched.${inner_ext}" "${file}-zip/extensions/shared.${inner_ext}" || return 1
+					if [ -f "${file}-zip/extensions/shared.${extensions_ext}" ]; then
+						java -cp "${BIN_DIR}/paccer.jar:${BIN_DIR}/dexlib2.jar" com.jhc.Main "${file}-zip/extensions/shared.${extensions_ext}" "${file}-zip/extensions/shared-patched.${extensions_ext}" || return 1
+						mv -f "${file}-zip/extensions/shared-patched.${extensions_ext}" "${file}-zip/extensions/shared.${extensions_ext}" || return 1
+					fi
 					rm "${file}" || return 1
 					cd "${file}-zip" || abort
 					zip -0rq "${CWD}/${file}" . || return 1
@@ -174,17 +192,17 @@ config_update() {
 			sources["$PATCHES_SRC/$PATCHES_VER"]=0
 			local rv_rel="https://api.github.com/repos/${PATCHES_SRC}/releases"
 			if [ "$PATCHES_VER" = "dev" ]; then
-				last_patches=$(gh_req "$rv_rel" - | jq -e -r '.[0]')
+				last_patches=$(gh_req "$rv_rel" - | jq -e -r '.[0]') || continue
 			elif [ "$PATCHES_VER" = "latest" ]; then
-				last_patches=$(gh_req "$rv_rel/latest" -)
+				last_patches=$(gh_req "$rv_rel/latest" -) || continue
 			else
-				last_patches=$(gh_req "$rv_rel/tags/${ver}" -)
+				last_patches=$(gh_req "$rv_rel/tags/${ver}" -) || continue
 			fi
-			if ! last_patches=$(jq -e -r ".assets[] | select(.name | endswith(\"$PATCH_EXT\")) | .name" <<<"$last_patches"); then
+			if ! last_patches=$(jq -e -r ".assets[] | select(.name | endswith(\"$PATCH_EXT\") and (endswith(\"asc\") or endswith(\"json\") | not)) | .name" <<<"$last_patches"); then
 				abort oops
 			fi
 			if [ "$last_patches" ]; then
-				if ! OP=$(grep "^Patches: ${PATCHES_SRC%%/*}/" build.md | grep "$last_patches"); then
+				if ! OP=$(grep "^Patches: ${PATCHES_SRC%%/*}/" build.md | grep -m1 "$last_patches"); then
 					sources["$PATCHES_SRC/$PATCHES_VER"]=1
 					prcfg=true
 					upped+=("$table_name")
@@ -207,23 +225,20 @@ config_update() {
 _req() {
 	local ip="$1" op="$2"
 	shift 2
-	if [ "$op" = - ]; then
-		if ! curl -L -c "$TEMP_DIR/cookie.txt" -b "$TEMP_DIR/cookie.txt" --connect-timeout 5 --retry 0 --fail -s -S "$@" "$ip"; then
-			epr "Request failed: $ip"
-			return 1
-		fi
-	else
+	local dlp="$op"
+	if [ "$op" != - ]; then
 		if [ -f "$op" ]; then return; fi
-		local dlp
 		dlp="$(dirname "$op")/tmp.$(basename "$op")"
 		if [ -f "$dlp" ]; then
 			while [ -f "$dlp" ]; do sleep 1; done
 			return
 		fi
-		if ! curl -L -c "$TEMP_DIR/cookie.txt" -b "$TEMP_DIR/cookie.txt" --connect-timeout 5 --retry 0 --fail -s -S "$@" "$ip" -o "$dlp"; then
-			epr "Request failed: $ip"
-			return 1
-		fi
+	fi
+	if ! curl -L -c "$TEMP_DIR/cookie.txt" -b "$TEMP_DIR/cookie.txt" --connect-timeout 10 --retry 1 --fail -s -S "$@" "$ip" -o "$dlp"; then
+		epr "Request failed: $ip"
+		return 1
+	fi
+	if [ "$dlp" != - ]; then
 		mv -f "$dlp" "$op"
 	fi
 }
@@ -283,7 +298,9 @@ get_patch_last_supported_ver() {
 			return
 		fi
 	fi
-	op=$(java -jar "$cli_jar" list-versions "$patches_jar" -f "$pkg_name" 2>&1 | tail -n +3 | awk '{$1=$1}1')
+	
+	op=$(java -jar "$cli_jar" list-versions "$patches_jar" -f "$pkg_name" 2>&1 | awk '{$1=$1}1' | grep -E '^([0-9]+|Any)' || true)
+	
 	if [ "$op" = "Any" ]; then return; fi
 	pcount=$(head -1 <<<"$op") pcount=${pcount#*(} pcount=${pcount% *}
 	if [ -z "$pcount" ]; then
@@ -303,7 +320,7 @@ isoneof() {
 merge_splits() {
 	local bundle=$1 output=$2
 	pr "Merging splits"
-	gh_dl "$TEMP_DIR/apkeditor.jar" "https://github.com/REAndroid/APKEditor/releases/download/V1.4.2/APKEditor-1.4.2.jar" >/dev/null || return 1
+	gh_dl "$TEMP_DIR/apkeditor.jar" "https://github.com/REAndroid/APKEditor/releases/download/V1.4.7/APKEditor-1.4.7.jar" >/dev/null || return 1
 	if ! OP=$(java -jar "$TEMP_DIR/apkeditor.jar" merge -i "${bundle}" -o "${bundle}.mzip" -clean-meta -f 2>&1); then
 		epr "Apkeditor ERROR: $OP"
 		return 1
@@ -330,21 +347,30 @@ merge_splits() {
 # -------------------- apkmirror --------------------
 apk_mirror_search() {
 	local resp="$1" dpi="$2" arch="$3" apk_bundle="$4"
-	local apparch dlurl node app_table
+	local apparch dlurl="" node app_table emptyCheck
 	if [ "$arch" = all ]; then
 		apparch=(universal noarch 'arm64-v8a + armeabi-v7a')
 	else apparch=("$arch" universal noarch 'arm64-v8a + armeabi-v7a'); fi
 	for ((n = 1; n < 40; n++)); do
 		node=$($HTMLQ "div.table-row.headerFont:nth-last-child($n)" -r "span:nth-child(n+3)" <<<"$resp")
 		if [ -z "$node" ]; then break; fi
+
+		emptyCheck=$($HTMLQ -t -w "div.table-cell:nth-child(1) > a:nth-child(1)" <<<"$node" | xargs)
+		if [ "$emptyCheck" ]; then
+			dlurl=$($HTMLQ --base https://www.apkmirror.com --attribute href "div:nth-child(1) > a:nth-child(1)" <<<"$node")
+		else break; fi
+
 		app_table=$($HTMLQ --text --ignore-whitespace <<<"$node")
 		if [ "$(sed -n 3p <<<"$app_table")" = "$apk_bundle" ] && [ "$(sed -n 6p <<<"$app_table")" = "$dpi" ] &&
 			isoneof "$(sed -n 4p <<<"$app_table")" "${apparch[@]}"; then
-			dlurl=$($HTMLQ --base https://www.apkmirror.com --attribute href "div:nth-child(1) > a:nth-child(1)" <<<"$node")
 			echo "$dlurl"
 			return 0
 		fi
 	done
+	if [ "$n" -eq 2 ] && [ "$dlurl" ]; then
+		echo "$dlurl"
+		return 0
+	fi
 	return 1
 }
 dl_apkmirror() {
@@ -406,8 +432,8 @@ get_apkmirror_resp() {
 
 # -------------------- uptodown --------------------
 get_uptodown_resp() {
-	__UPTODOWN_RESP__=$(req "${1}/versions" -)
-	__UPTODOWN_RESP_PKG__=$(req "${1}/download" -)
+	__UPTODOWN_RESP__=$(req "${1}/versions" -) || return 1
+	__UPTODOWN_RESP_PKG__=$(req "${1}/download" -) || return 1
 }
 get_uptodown_vers() { $HTMLQ --text ".version" <<<"$__UPTODOWN_RESP__"; }
 dl_uptodown() {
@@ -434,20 +460,26 @@ dl_uptodown() {
 	versionURL=$(jq -e -r '.url + "/" + .extraURL + "/" + (.versionID | tostring)' <<<"$versionURL")
 	resp=$(req "$versionURL" -) || return 1
 
-	local data_version files node_arch data_file_id
+	local data_version files node_arch="" data_file_id node_class
 	data_version=$($HTMLQ '.button.variants' --attribute data-version <<<"$resp") || return 1
 	if [ "$data_version" ]; then
 		files=$(req "${uptodown_dlurl%/*}/app/${data_code}/version/${data_version}/files" - | jq -e -r .content) || return 1
-		for ((n = 1; n < 12; n += 2)); do
-			node_arch=$($HTMLQ ".content > p:nth-child($n)" --text <<<"$files" | xargs) || return 1
+		for ((n = 1; n < 12; n += 1)); do
+			node_class=$($HTMLQ -w -t ".content > :nth-child($n)" --attribute class <<<"$files") || return 1
+			if [ "$node_class" != "variant" ]; then
+				node_arch=$($HTMLQ -w -t ".content > :nth-child($n)" <<<"$files" | xargs) || return 1
+				continue
+			fi
 			if [ -z "$node_arch" ]; then return 1; fi
 			if ! isoneof "$node_arch" "${apparch[@]}"; then continue; fi
-			file_type=$($HTMLQ -w -t "div.variant:nth-child($((n + 1))) > .v-file > span" <<<"$files") || return 1
+
+			file_type=$($HTMLQ -w -t ".content > :nth-child($n) > .v-file > span" <<<"$files") || return 1
 			if [ "$file_type" = "xapk" ]; then is_bundle=true; else is_bundle=false; fi
-			data_file_id=$($HTMLQ "div.variant:nth-child($((n + 1))) > .v-report" --attribute data-file-id <<<"$files") || return 1
+			data_file_id=$($HTMLQ ".content > :nth-child($n) > .v-report" --attribute data-file-id <<<"$files") || return 1
 			resp=$(req "${uptodown_dlurl}/download/${data_file_id}-x" -)
 			break
 		done
+		if [ $n -eq 12 ]; then return 1; fi
 	fi
 	local data_url
 	data_url=$($HTMLQ "#detail-download-button" --attribute data-url <<<"$resp") || return 1
@@ -509,7 +541,7 @@ get_github_release_pkg_name() {
 
 get_github_release_vers() {
 	local assets=$(echo "$__GITHUB_RELEASE_RESP__" | jq -r '.assets[].name')
-	echo "$assets" | grep -oP '(\d+\.\d+\.\d+)' | sort -Vu
+	echo "$assets" | grep -oP '(\d+\.\d+\.\d+)' | sort -Vu || true
 }
 
 dl_github_release() {
@@ -544,9 +576,9 @@ dl_github_release() {
 
 patch_apk() {
 	local stock_input=$1 patched_apk=$2 patcher_args=$3 cli_jar=$4 patches_jar=$5
-    
+	
 	local cmd="env -u GITHUB_REPOSITORY java -jar $cli_jar patch $stock_input --purge -o $patched_apk -p $patches_jar --custom-zipalign-binary \"$ZIPALIGN_BIN\" $patcher_args"
-    
+	
 	if [ "$OS" = Android ]; then cmd+=" --custom-aapt2-binary=${AAPT2}"; fi
 	pr "$cmd"
 	if eval "$cmd"; then [ -f "$patched_apk" ]; else
@@ -735,12 +767,14 @@ build_rv() {
 				fi
 			fi
 		fi
+
 		if [ "${NORB:-}" != true ] || [ ! -f "$patched_apk" ]; then
 			if ! patch_apk "$stock_apk" "$patched_apk" "${patcher_args[*]}" "${args[cli]}" "${args[ptjar]}"; then
 				epr "Building '${table}' failed!"
 				return 0
 			fi
 		fi
+
 		if command -v zipalign >/dev/null; then
 			pr "Repack Arsc -> Zipalign -> Resign..."
 
