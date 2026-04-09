@@ -1,4 +1,4 @@
-eenable-magisk-update = true # set this to false if you do not want to receive updates for the module in magisk app
+enable-magisk-update = true # set this to false if you do not want to receive updates for the module in magisk app
 parallel-jobs = 1
 riplib = true
 
@@ -13,11 +13,14 @@ cli-version = "latest"
 build-mode = "module"
 excluded-patches = "'Swipe controls' 'Custom branding' 'Change form factor' 'Shorts autoplay' 'Alternative thumbnails' 'Bypass image region restrictions' 'Enable debugging'"
 version = "auto"
+apkmirror-dlurl = "https://www.apkmirror.com/apk/google-inc/youtube"
+github-release-dlurl = "https://github.com/AzyrRuthless/YTYTM-APK/releases/latest"
 uptodown-dlurl = "https://youtube.en.uptodown.com/android"
 
 [Music]
 build-mode = "module"
 excluded-patches = "'Custom branding' 'Enable debugging'"
 arch = "arm64-v8a"
+apkmirror-dlurl = "https://www.apkmirror.com/apk/google-inc/youtube-music"
 github-release-dlurl = "https://github.com/AzyrRuthless/YTYTM-APK/releases/latest"
 uptodown-dlurl = "https://youtube-music.en.uptodown.com/android"
