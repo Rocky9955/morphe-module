@@ -1,5 +1,7 @@
 . "$MODPATH/config"
 
+export MODULE_HOT_INSTALL_REQUEST="true"
+
 ui_print ""
 if [ -n "$MODULE_ARCH" ] && [ "$MODULE_ARCH" != "$ARCH" ]; then
 	abort "ERROR: Wrong arch
