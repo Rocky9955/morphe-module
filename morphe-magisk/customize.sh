@@ -39,9 +39,13 @@ pmex() {
 	return $RET
 }
 
-if ! pmex path "$PKG_NAME" >&2; then
-	if pmex install-existing "$PKG_NAME" >&2; then
-		pmex uninstall-system-updates "$PKG_NAME"
+if OP=$(dumpsys package "$PKG_NAME" 2>&1) && [ "$OP" ]; then
+	if echo "$OP" | grep -m1 pkgFlags | grep -Fq UPDATED_SYSTEM_APP; then
+		pmex uninstall-system-updates "$PKG_NAME" >/dev/null 2>&1
+	fi
+else
+	if pmex install-existing "$PKG_NAME" >/dev/null 2>&1; then
+		pmex uninstall-system-updates "$PKG_NAME" >/dev/null 2>&1
 	fi
 fi
 
@@ -55,7 +59,7 @@ if BASEPATH=$(pmex path "$PKG_NAME"); then
 		IS_SYS=true
 	elif [ ! -f "$MODPATH/$PKG_NAME.apk" ]; then
 		ui_print "* Stock $PKG_NAME APK was not found"
-		VERSION=$(dumpsys package "$PKG_NAME" 2>&1 | grep -m1 versionName) VERSION="${VERSION#*=}"
+		VERSION=$(dumpsys package "$PKG_NAME" 2>&1 | grep -m1 versionName=) VERSION="${VERSION#*=}"
 		if [ "$VERSION" = "$PKG_VER" ] || [ -z "$VERSION" ]; then
 			ui_print "* Skipping stock installation"
 			INS=false
@@ -99,11 +103,8 @@ install() {
 			echo >&2 "$op"
 			if echo "$op" | grep -q -e INSTALL_FAILED_VERSION_DOWNGRADE -e INSTALL_FAILED_UPDATE_INCOMPATIBLE; then
 				ui_print "* Handling install error"
-				pmex uninstall-system-updates "$PKG_NAME"
-				BASEPATH=$(pmex path "$PKG_NAME") || abort
-				BASEPATH=${BASEPATH##*:} BASEPATH=${BASEPATH%/*}
-				if [ "${BASEPATH:1:4}" != data ]; then IS_SYS=true; fi
 				if [ "$IS_SYS" = true ]; then
+					pmex uninstall-system-updates "$PKG_NAME"
 					SCNM="/data/adb/post-fs-data.d/$PKG_NAME-uninstall.sh"
 					if [ -f "$SCNM" ]; then
 						ui_print "* Remove the old module. Reboot and reflash!"
@@ -121,7 +122,7 @@ install() {
 					break
 				else
 					ui_print "* Uninstalling..."
-					if ! op=$(pmex uninstall -k --user 0 "$PKG_NAME"); then
+					if ! op=$(pmex uninstall "$PKG_NAME"); then
 						ui_print "$op"
 						if [ $IT = 2 ]; then
 							install_err="ERROR: pm uninstall failed."
@@ -177,13 +178,11 @@ nohup cmd package compile -m speed-profile -f "$PKG_NAME" >/dev/null 2>&1 &
 
 if [ "$KSU" = "true" ]; then
 	ui_print "* Configuring KernelSU profile..."
-	UID=$(dumpsys package "$PKG_NAME" 2>&1 | grep -m1 "uid")
-	UID=${UID#*=} 
-	UID=${UID%% *}
+	UID=$(dumpsys package "$PKG_NAME" 2>&1 | grep -m1 uid=)
+	UID=${UID#*=} UID=${UID%% *}
 	if [ -z "$UID" ]; then
-		UID=$(dumpsys package "$PKG_NAME" 2>&1 | grep -m1 "userId")
-		UID=${UID#*=} 
-		UID=${UID%% *}
+		UID=$(dumpsys package "$PKG_NAME" 2>&1 | grep -m1 userId=)
+		UID=${UID#*=} UID=${UID%% *}
 	fi
 	if [ -n "$UID" ]; then
 		if ! OP=$("${MODPATH:?}/bin/$ARCH/ksu_profile" "$UID" "$PKG_NAME" 2>&1); then
