@@ -15,10 +15,12 @@ github-release-dlurl = "https://github.com/AzyrRuthless/YTYTM-APK/releases/lates
 apkmirror-dlurl = "https://www.apkmirror.com/apk/google-inc/youtube"
 excluded-patches = "'Alternative thumbnails' 'Bypass image region restrictions' 'Change form factor' 'Swipe controls' 'Translations for YouTube'"
 
-[Music]
+[Youtube-Music]
 app-name = "YouTube Music"
 build-mode = "module"
 arch = "arm64-v8a"
 github-release-dlurl = "https://github.com/AzyrRuthless/YTYTM-APK/releases/latest"
 apkmirror-dlurl = "https://www.apkmirror.com/apk/google-inc/youtube-music"
+uptodown-dlurl = "https://youtube-music.en.uptodown.com/android"
+archive-dlurl = "https://archive.org/download/jhc-apks/apks/com.google.android.apps.youtube.music"
 excluded-patches = "'Bypass image region restrictions' 'Translations for YouTube Music'"
