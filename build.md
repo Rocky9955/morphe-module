@@ -1,5 +1,5 @@
 Youtube: 20.51.39  
-Youtube-Music: 8.47.56  
+Youtube-Music: 8.51.51  
 
 Install [Microg](https://github.com/MorpheApp/MicroG-RE/releases) for non-root YouTube and YT Music APKs  
 Use [zygisk-detach](https://github.com/j-hc/zygisk-detach) to detach root Morphe YouTube and YT Music from Play Store  
@@ -7,5 +7,5 @@ Use [zygisk-detach](https://github.com/j-hc/zygisk-detach) to detach root Morphe
 [morphe-magisk-module](https://github.com/AzyrRuthless/morphe-magisk-module)
   
 CLI: AzyrRuthless/morphe-cli-1.7.0-all.jar  
-Patches: morpheapp/patches-1.30.0.mpp  
-[Changelog](https://github.com/morpheapp/morphe-patches/releases/tag/v1.30.0)  
+Patches: morpheapp/patches-1.31.0.mpp  
+[Changelog](https://github.com/morpheapp/morphe-patches/releases/tag/v1.31.0)  
