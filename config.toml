@@ -21,7 +21,7 @@ archive-dlurl = "https://archive.org/download/jhc-apks/apks/com.google.android.a
 excluded-patches = "'Enable debugging'"
 
 
-[Reddit-Morphe]
+[Reddit]
 app-name = "Reddit"
 build-mode = "module"
 apkmirror-dlurl = "https://www.apkmirror.com/apk/redditinc/reddit/"
